@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>育儿百科</title>
+  <style>
+    /* ===== 温暖奶咖风：米白打底，奶黄/浅橙点缀，暖棕文字 ===== */
+    :root {
+      --bg: #FAF6EF;          /* 背景米白，不是纯白 */
+      --card: #FFFFFF;        /* 卡片白，浮在米白上 */
+      --text: #4A3A30;        /* 暖棕文字，不用纯黑 */
+      --text-soft: #8A776A;   /* 次要文字 */
+      --accent: #E5975B;      /* 浅橙：按钮、选中态 */
+      --accent-dark: #D4833F; /* 浅橙按下 */
+      --cream: #FBE8C8;       /* 奶黄：点缀、话术底色 */
+      --line: #EFE4D6;        /* 描边 */
+      --shadow: 0 4px 16px rgba(150, 110, 70, 0.10);
+      --shadow-lift: 0 8px 24px rgba(150, 110, 70, 0.16);
+    }
+
+    /* ===== 全局：圆润字体 + 偏大字号 ===== */
+    body {
+      margin: 0;
+      text-align: center;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei",
+                   "Hiragino Sans GB", system-ui, -apple-system, sans-serif;
+      font-size: 17px;
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+    }
+    .block {
+      margin: 40px auto;
+      padding: 0 16px;
+      max-width: 720px;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      margin: 8px 0;
+    }
+
+    /* ===== ① 顶栏 ===== */
+    header.block {
+      background: linear-gradient(180deg, #FDF1DD 0%, var(--bg) 100%);
+      border-radius: 0 0 28px 28px;
+      margin-top: 0;
+      padding: 40px 20px 32px;
+      max-width: none;
+    }
+    header h1 {
+      margin: 0 0 10px;
+      font-size: 34px;
+      letter-spacing: 1px;
+    }
+    header p {
+      margin: 0;
+      color: var(--text-soft);
+      font-size: 16px;
+    }
+
+    /* ===== ② 搜索框 + 搜索按钮 ===== */
+    #search-input {
+      width: min(400px, 100%);
+      box-sizing: border-box;
+      padding: 13px 20px;
+      font-size: 16px;          /* 不小于16px，手机上不会被自动放大 */
+      font-family: inherit;
+      color: var(--text);
+      background: var(--card);
+      border: 2px solid var(--line);
+      border-radius: 999px;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      box-shadow: var(--shadow);
+      transition: border-color .2s, box-shadow .2s;
+    }
+    #search-input::placeholder {
+      color: #BCAB9C;
+    }
+    #search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(229, 151, 91, 0.18);
+    }
+    #search-btn {
+      margin-left: 10px;
+      padding: 13px 30px;
+      font-size: 16px;
+      font-family: inherit;
+      font-weight: bold;
+      color: #FFFFFF;
+      background: var(--accent);
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: background .2s, transform .1s, box-shadow .2s;
+    }
+    #search-btn:hover {
+      background: var(--accent-dark);
+      box-shadow: var(--shadow-lift);
+    }
+    #search-btn:active {
+      transform: translateY(1px);
+    }
+
+    /* ===== ③ 4个年龄段按钮 ===== */
+    #search-btn + div {
+      margin-top: 18px;
+    }
+    .age-btn {
+      margin: 6px 5px;
+      padding: 10px 20px;
+      min-height: 44px;         /* 手指好点按 */
+      font-size: 15px;
+      font-family: inherit;
+      color: var(--text-soft);
+      background: var(--card);
+      border: 2px solid var(--line);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background-color .2s, color .2s, border-color .2s, box-shadow .2s;
+    }
+    .age-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent-dark);
+    }
+    /* 选中的年龄段按钮：填充浅橙 + 加粗 */
+    .age-btn.active {
+      font-weight: bold;
+      color: #FFFFFF;
+      background: var(--accent);
+      border-color: var(--accent);
+      box-shadow: var(--shadow);
+    }
+
+    /* ===== ④ 结果卡片：白卡浮在米白底上 ===== */
+    .card {
+      margin: 20px auto;
+      padding: 24px 26px;
+      text-align: left;         /* 大段文字左对齐才好读 */
+      background: var(--card);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      transition: box-shadow .2s, transform .2s;
+    }
+    .card:hover {
+      box-shadow: var(--shadow-lift);
+      transform: translateY(-2px);
+    }
+    .card h3 {
+      margin: 0 0 14px;
+      padding-bottom: 12px;
+      font-size: 21px;
+      border-bottom: 2px dashed var(--line);
+    }
+    .card p {
+      margin: 12px 0;
+      font-size: 16.5px;
+    }
+    /* 第2个 p 固定是「话术」：奶黄底的小方块，家长一眼能找到 */
+    .card p:nth-of-type(2) {
+      padding: 14px 18px;
+      background: var(--cream);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 14px 14px 0;
+    }
+    /* 最后一个 p 固定是「出处」：弱化 */
+    .card p:last-of-type {
+      margin-bottom: 0;
+      font-size: 14px;
+      color: var(--text-soft);
+    }
+    /* 「没找到」提示（result-list 下直接的 p，不在卡片里） */
+    #result-list > p {
+      padding: 30px 0;
+      color: var(--text-soft);
+    }
+
+    /* ===== ⑤ 热门问题区 ===== */
+    h2 {
+      margin-bottom: 18px;
+      font-size: 24px;
+    }
+    .hot-item {
+      cursor: pointer;
+      padding: 15px 20px;
+      text-align: left;
+      background: var(--card);
+      border-radius: 14px;
+      border-left: 4px solid var(--cream);
+      box-shadow: var(--shadow);
+      transition: background-color .2s, border-color .2s, transform .2s, box-shadow .2s;
+    }
+    .hot-item:hover {
+      background: #FFFBF3;
+      border-left-color: var(--accent);
+      transform: translateX(4px);
+      box-shadow: var(--shadow-lift);
+    }
+
+    /* ===== ⑥ 底部说明 ===== */
+    footer.block {
+      margin-bottom: 0;
+      padding: 26px 20px 34px;
+      border-top: 2px dashed var(--line);
+      max-width: none;
+    }
+    footer p {
+      margin: 0;
+      font-size: 14px;
+      color: var(--text-soft);
+    }
+
+    /* ===== 窄屏（手机）：卡片全宽、字号不缩、按钮好点 ===== */
+    @media (max-width: 600px) {
+      .block {
+        margin: 28px auto;
+        padding: 0 14px;
+      }
+      header h1 {
+        font-size: 28px;
+      }
+      /* 搜索框和按钮各占一行，方便点 */
+      #search-input {
+        width: 100%;
+      }
+      #search-btn {
+        width: 100%;
+        margin: 12px 0 0;
+        min-height: 48px;
+      }
+      .age-btn {
+        margin: 5px 4px;
+        padding: 10px 16px;
+      }
+      .card {
+        margin: 16px 0;
+        padding: 20px 18px;     /* 只收内边距，字号不动 */
+        border-radius: 16px;
+      }
+      .card:hover {
+        transform: none;        /* 手机没有悬停，别抖 */
+      }
+      .hot-item:hover {
+        transform: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ① 顶栏 -->
+  <header class="block">
+    <h1>🧒 育儿百科</h1>
+    <p>科学育儿不焦虑：喂养、睡眠、情绪、习惯，一站式解答 0-12 岁育儿难题</p>
+  </header>
+
+  <!-- ② 搜索区 -->
+  <section class="block">
+    <input type="search" id="search-input" placeholder="输入你想问的育儿问题，如：宝宝半夜哭闹">
+    <button id="search-btn">搜索</button>
+    <div>
+      <button class="age-btn" data-age="0-1岁">0-1岁</button>
+      <button class="age-btn" data-age="1-3岁">1-3岁</button>
+      <button class="age-btn" data-age="3-6岁">3-6岁</button>
+      <button class="age-btn" data-age="6-12岁">6-12岁</button>
+    </div>
+  </section>
+
+  <!-- ③ 结果区 -->
+  <section class="block">
+    <!-- 结果卡片将显示在这里 -->
+    <div id="result-list"></div>
+  </section>
+
+  <!-- ④ 热门问题专区 -->
+  <section class="block">
+    <h2>热门问题</h2>
+    <ul>
+      <li class="hot-item" data-keyword="半夜哭闹">0-1岁宝宝半夜哭闹，是饿还是不舒服？</li>
+      <li class="hot-item" data-keyword="挑食不吃饭">1-3岁宝宝挑食不吃饭，追着喂还是顺其自然？</li>
+      <li class="hot-item" data-keyword="撒泼打滚">3岁孩子撒泼打滚，吼还是哄？</li>
+      <li class="hot-item" data-keyword="上幼儿园哭闹">3-6岁孩子上幼儿园哭闹，怎么安抚？</li>
+      <li class="hot-item" data-keyword="写作业拖拉">6-12岁孩子写作业拖拉，怎么破？</li>
+    </ul>
+  </section>
+
+  <!-- ⑤ 底部：数据来源说明 -->
+  <footer class="block">
+    <p>数据来源：精选 10 本育儿书（如《美国儿科学会育儿百科》《西尔斯亲密育儿百科》《正面管教》等）</p>
+  </footer>
+
+  <!-- 知识库数据 -->
+  <script src="data.js"></script>
+
+  <!-- 搜索功能 -->
+  <script>
+    var input = document.getElementById('search-input');
+    var btn = document.getElementById('search-btn');
+    var resultList = document.getElementById('result-list');
+    var ageBtns = document.querySelectorAll('.age-btn');
+    var hotItems = document.querySelectorAll('.hot-item');
+    var selectedAge = '';  // 空 = 没筛年龄段
+
+    // 生成一张结果卡片
+    function createCard(item) {
+      var card = document.createElement('div');
+      card.className = 'card';
+
+      var question = document.createElement('h3');
+      question.textContent = item.question;
+      card.appendChild(question);
+
+      var advice = document.createElement('p');
+      advice.textContent = item.advice;
+      card.appendChild(advice);
+
+      var script = document.createElement('p');
+      script.textContent = '你可以这样说：' + item.script;
+      card.appendChild(script);
+
+      // 故事有内容才显示
+      if (item.story) {
+        var story = document.createElement('p');
+        story.textContent = item.story;
+        card.appendChild(story);
+      }
+
+      var source = document.createElement('p');
+      source.textContent = '出处：' + item.source;
+      card.appendChild(source);
+
+      return card;
+    }
+
+    // 按「关键词 + 年龄段」出结果：问题里包含关键词就算匹配
+    function render() {
+      var keyword = input.value.trim();
+      resultList.textContent = '';
+
+      // 没输关键词也没选年龄段，就保持初始的空白状态
+      if (!keyword && !selectedAge) return;
+
+      var matched = KNOWLEDGE.filter(function (item) {
+        var hitKeyword = !keyword || item.question.indexOf(keyword) !== -1;
+        var hitAge = !selectedAge || item.age === selectedAge;
+        return hitKeyword && hitAge;
+      });
+
+      if (matched.length === 0) {
+        var tip = document.createElement('p');
+        tip.textContent = '没找到，换个说法试试';
+        resultList.appendChild(tip);
+        return;
+      }
+
+      matched.forEach(function (item) {
+        resultList.appendChild(createCard(item));
+      });
+    }
+
+    btn.addEventListener('click', render);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') render();
+    });
+
+    // 只让当前选中的年龄段按钮加粗
+    function updateAgeButtons() {
+      Array.prototype.forEach.call(ageBtns, function (b) {
+        if (b.getAttribute('data-age') === selectedAge) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
+    }
+
+    // 年龄段筛选：点一下选中，再点同一个取消
+    Array.prototype.forEach.call(ageBtns, function (ageBtn) {
+      ageBtn.addEventListener('click', function () {
+        var age = ageBtn.getAttribute('data-age');
+        selectedAge = (selectedAge === age) ? '' : age;
+        updateAgeButtons();
+        render();
+      });
+    });
+
+    // 热门问题：点标题 = 填关键词 + 清掉年龄段筛选，保证一定看到这条答案
+    Array.prototype.forEach.call(hotItems, function (hotItem) {
+      hotItem.addEventListener('click', function () {
+        input.value = hotItem.getAttribute('data-keyword');
+        selectedAge = '';
+        updateAgeButtons();
+        render();
+      });
+    });
+  </script>
+
+</body>
+</html>
