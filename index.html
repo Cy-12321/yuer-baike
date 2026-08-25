@@ -263,7 +263,7 @@
 
   <!-- ② 搜索区 -->
   <section class="block">
-    <input type="search" id="search-input" placeholder="输入你想问的育儿问题，如：宝宝半夜哭闹">
+    <input type="search" id="search-input" placeholder="搜关键词：哭闹、发烧、辅食">
     <button id="search-btn">搜索</button>
     <div>
       <button class="age-btn" data-age="0-1岁">0-1岁</button>
@@ -283,9 +283,10 @@
   <section class="block">
     <h2>热门问题</h2>
     <ul>
+      <li class="hot-item" data-keyword="发烧">宝宝发烧了，先物理降温还是直接吃药？</li>
+      <li class="hot-item" data-keyword="辅食">宝宝辅食怎么加？第一口吃什么？</li>
+      <li class="hot-item" data-keyword="湿疹">宝宝湿疹反反复复，怎么护理？</li>
       <li class="hot-item" data-keyword="半夜哭闹">0-1岁宝宝半夜哭闹，是饿还是不舒服？</li>
-      <li class="hot-item" data-keyword="挑食不吃饭">1-3岁宝宝挑食不吃饭，追着喂还是顺其自然？</li>
-      <li class="hot-item" data-keyword="撒泼打滚">3岁孩子撒泼打滚，吼还是哄？</li>
       <li class="hot-item" data-keyword="上幼儿园哭闹">3-6岁孩子上幼儿园哭闹，怎么安抚？</li>
       <li class="hot-item" data-keyword="写作业拖拉">6-12岁孩子写作业拖拉，怎么破？</li>
     </ul>
@@ -340,6 +341,8 @@
     }
 
     // 按「关键词 + 年龄段」出结果：问题里包含关键词就算匹配
+    // 第一优先：整句关键词直接匹配；一条都没中时，
+    // 按 4字→3字→2字 滑动拆词，用命中的小词再搜一轮
     function render() {
       var keyword = input.value.trim();
       resultList.textContent = '';
@@ -347,15 +350,16 @@
       // 没输关键词也没选年龄段，就保持初始的空白状态
       if (!keyword && !selectedAge) return;
 
-      var matched = KNOWLEDGE.filter(function (item) {
-        var hitKeyword = !keyword || item.question.indexOf(keyword) !== -1;
-        var hitAge = !selectedAge || item.age === selectedAge;
-        return hitKeyword && hitAge;
-      });
+      var matched = searchItems(keyword);
+
+      // 整句搜不到时，自动拆成小词再搜
+      if (matched.length === 0 && keyword) {
+        matched = searchByWords(keyword);
+      }
 
       if (matched.length === 0) {
         var tip = document.createElement('p');
-        tip.textContent = '没找到，换个说法试试';
+        tip.textContent = '没找到，试试更短的关键词，比如：哭闹、发烧';
         resultList.appendChild(tip);
         return;
       }
@@ -363,6 +367,57 @@
       matched.forEach(function (item) {
         resultList.appendChild(createCard(item));
       });
+    }
+
+    // 原匹配：question 包含关键词（外加年龄段筛选）
+    function searchItems(keyword) {
+      return KNOWLEDGE.filter(function (item) {
+        var hitKeyword = !keyword || item.question.indexOf(keyword) !== -1;
+        var hitAge = !selectedAge || item.age === selectedAge;
+        return hitKeyword && hitAge;
+      });
+    }
+
+    // 拆词搜索：把输入按 4字→3字→2字 滑动切成小词，
+    // 只留出现在任意 question 里的词（去重，按长度从长到短），
+    // 再用这些词匹配条目；命中的词越长，条目越靠前
+    function searchByWords(keyword) {
+      // 1. 滑动切词：4字、3字、2字各切一遍
+      var words = [];
+      [4, 3, 2].forEach(function (len) {
+        for (var i = 0; i + len <= keyword.length; i++) {
+          var word = keyword.substr(i, len);
+          if (words.indexOf(word) === -1) words.push(word);
+        }
+      });
+
+      // 2. 只留真正在某个 question 里出现过的词，按长度从长到短
+      var hitWords = words.filter(function (word) {
+        return KNOWLEDGE.some(function (item) {
+          return item.question.indexOf(word) !== -1;
+        });
+      }).sort(function (a, b) {
+        return b.length - a.length;
+      });
+
+      if (hitWords.length === 0) return [];
+
+      // 3. 用命中的词匹配条目，记下每条命中的最长词长度
+      var hits = [];
+      KNOWLEDGE.forEach(function (item) {
+        if (selectedAge && item.age !== selectedAge) return;
+        var bestLen = 0;
+        hitWords.forEach(function (word) {
+          if (word.length > bestLen && item.question.indexOf(word) !== -1) {
+            bestLen = word.length;
+          }
+        });
+        if (bestLen > 0) hits.push({ item: item, len: bestLen });
+      });
+
+      // 4. 命中的词越长越靠前
+      hits.sort(function (a, b) { return b.len - a.len; });
+      return hits.map(function (h) { return h.item; });
     }
 
     btn.addEventListener('click', render);
