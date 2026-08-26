@@ -190,6 +190,14 @@
       font-size: 16.5px;
       color: var(--text);
     }
+    /* 占位卡：半透明一眼看出是临时的；失败后内容弱化成灰色小字 */
+    .ai-card.ai-loading {
+      opacity: 0.6;
+    }
+    .ai-card.ai-failed p:last-of-type {
+      font-size: 14px;
+      color: var(--text-soft);
+    }
 
     /* ===== ⑤ 热门问题区 ===== */
     h2 {
@@ -475,33 +483,44 @@
       });
     }
 
-    // AI 回答卡片：外观跟知识库卡片一致，顶部标一行顾问名
-    function createAICard(answer) {
+    // AI 占位卡：外观跟知识库卡片一致，顶部标一行顾问名；
+    // 一开始半透明显示"正在思考…"，回答回来后原地改文字
+    function createAICard() {
       var card = document.createElement('div');
-      card.className = 'card ai-card';
+      card.className = 'card ai-card ai-loading';
 
       var title = document.createElement('h3');
       title.textContent = '🧑🏫 AI 育儿顾问';
       card.appendChild(title);
 
       var answerP = document.createElement('p');
-      answerP.textContent = answer;
+      answerP.textContent = '正在思考…';
       card.appendChild(answerP);
 
       return card;
     }
 
-    // 搜索主流程：先照原查表逻辑出结果，同时问 AI；
-    // AI 答上来就把回答卡片插到结果区最顶部，没答上来则结果和以前一模一样
+    // 搜索主流程：先照原查表逻辑出结果，同时在结果区最顶部插一张 AI 占位卡；
+    // AI 答上来就把占位卡文字原地换成回答，没答上来就换成一句灰色小字
     function searchWithAI() {
       render();
       var keyword = input.value.trim();
       if (!keyword) return;  // 没关键词就不问 AI，保持以前的空白/只看年龄段行为
 
+      var placeholder = createAICard();
+      resultList.insertBefore(placeholder, resultList.firstChild);
+
       var seq = aiSeq;
       askAI(keyword, selectedAge).then(function (answer) {
-        if (!answer || seq !== aiSeq) return;  // AI 没答上来，或期间又搜索了一次
-        resultList.insertBefore(createAICard(answer), resultList.firstChild);
+        if (seq !== aiSeq) return;  // 期间又搜索了一次：旧占位卡已被清掉，什么都不做
+        var answerP = placeholder.querySelector('p');
+        placeholder.classList.remove('ai-loading');
+        if (answer) {
+          answerP.textContent = answer;
+        } else {
+          answerP.textContent = 'AI 顾问暂时没接上，先看下面的知识库答案';
+          placeholder.classList.add('ai-failed');
+        }
       });
     }
 
