@@ -64,8 +64,15 @@
     }
 
     /* ===== ② 搜索框 + 搜索按钮 ===== */
-    #search-input {
+    /* 输入框和麦克风挤在一行，行宽 = 原来输入框的宽度 */
+    .input-row {
+      display: inline-flex;
+      align-items: center;
       width: min(400px, 100%);
+    }
+    #search-input {
+      flex: 1 1 auto;
+      min-width: 0;
       box-sizing: border-box;
       padding: 13px 20px;
       font-size: 16px;          /* 不小于16px，手机上不会被自动放大 */
@@ -109,8 +116,98 @@
       transform: translateY(1px);
     }
 
+    /* ===== ②.5 语音输入：麦克风按钮 + 按住说话 ===== */
+    #mic-btn {
+      flex: none;
+      margin-left: 8px;
+      width: 50px;
+      height: 50px;
+      padding: 0;
+      font-size: 22px;
+      line-height: 1;
+      color: var(--accent-dark);
+      background: var(--card);
+      border: 2px solid var(--line);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: border-color .2s, box-shadow .2s, transform .1s;
+    }
+    #mic-btn:hover {
+      border-color: var(--accent);
+      box-shadow: var(--shadow-lift);
+    }
+    #mic-btn:active {
+      transform: translateY(1px);
+    }
+
+    /* 语音模式：搜索框位置换成「按住说话」+ 取消按钮 */
+    .voice-row {
+      display: none;
+    }
+    .voice-mode .input-row,
+    .voice-mode #search-btn {
+      display: none;
+    }
+    .voice-mode .voice-row {
+      display: flex;
+      width: min(400px, 100%);
+      margin: 0 auto;
+    }
+    #hold-speak-btn {
+      flex: 1 1 auto;
+      min-height: 58px;
+      padding: 0 24px;
+      font-size: 18px;
+      font-weight: bold;
+      font-family: inherit;
+      color: var(--accent-dark);
+      background: var(--cream);
+      border: 2px solid var(--accent);
+      border-radius: 999px;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      touch-action: none;            /* 按住时不让页面跟着滚动 */
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      transition: background .2s, color .2s, border-color .2s;
+    }
+    /* 按住中：变浅橙 + 呼吸光圈 */
+    #hold-speak-btn.recording {
+      color: #FFFFFF;
+      background: var(--accent);
+      border-color: var(--accent-dark);
+      animation: mic-pulse 1.2s ease-out infinite;
+    }
+    @keyframes mic-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(229, 151, 91, 0.35); }
+      100% { box-shadow: 0 0 0 14px rgba(229, 151, 91, 0); }
+    }
+    #voice-cancel-btn {
+      flex: none;
+      margin-left: 10px;
+      width: 50px;
+      font-size: 16px;
+      font-family: inherit;
+      color: var(--text-soft);
+      background: var(--card);
+      border: 2px solid var(--line);
+      border-radius: 999px;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: border-color .2s, color .2s, box-shadow .2s;
+    }
+    #voice-cancel-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent-dark);
+    }
+
     /* ===== ③ 4个年龄段按钮 ===== */
-    #search-btn + div {
+    #age-row {
       margin-top: 18px;
     }
     .age-btn {
@@ -243,9 +340,12 @@
       header h1 {
         font-size: 28px;
       }
-      /* 搜索框和按钮各占一行，方便点 */
-      #search-input {
+      /* 搜索行占满，输入框和麦克风挤一行；搜索按钮另起一行，方便点 */
+      .input-row {
         width: 100%;
+      }
+      #hold-speak-btn {
+        min-height: 64px;   /* 手机上手大，按住说话的按钮再高点 */
       }
       #search-btn {
         width: 100%;
@@ -279,10 +379,17 @@
   </header>
 
   <!-- ② 搜索区 -->
-  <section class="block">
-    <input type="search" id="search-input" placeholder="搜关键词：哭闹、发烧、辅食">
+  <section class="block" id="search-section">
+    <div class="input-row">
+      <input type="search" id="search-input" placeholder="搜关键词：哭闹、发烧、辅食">
+      <button id="mic-btn" title="语音输入" aria-label="语音输入">🎤</button>
+    </div>
     <button id="search-btn">搜索</button>
-    <div>
+    <div class="voice-row" id="voice-row">
+      <button id="hold-speak-btn">按住说话</button>
+      <button id="voice-cancel-btn" title="退出语音输入" aria-label="退出语音输入">✕</button>
+    </div>
+    <div id="age-row">
       <button class="age-btn" data-age="0-1岁">0-1岁</button>
       <button class="age-btn" data-age="1-3岁">1-3岁</button>
       <button class="age-btn" data-age="3-6岁">3-6岁</button>
@@ -559,6 +666,303 @@
         render();
       });
     });
+  </script>
+
+  <!-- 语音输入：按住说话 → 网页录音 → 腾讯云 ASR 转文字（不挑浏览器、不走谷歌） -->
+  <script>
+    var searchSection = document.getElementById('search-section');
+    var micBtn = document.getElementById('mic-btn');
+    var voiceCancelBtn = document.getElementById('voice-cancel-btn');
+    var holdBtn = document.getElementById('hold-speak-btn');
+
+    var stream = null;      // 麦克风流：语音模式期间拿着，退出时释放（不让麦克风一直亮）
+    var micPending = false; // 正在向浏览器要麦克风权限
+    var recorder = null;    // 正在录音的 MediaRecorder
+    var chunks = [];        // 这次录音攒下的音频块
+    var recording = false;  // 是否正在按住录音
+    var busy = false;       // 松手后识别中：忽略再次按住
+    var abortReason = null; // 非空 = 这次录音作废（toolong / cancel）
+    var maxTimer = null;    // 30 秒上限计时器
+    var hintTimer = null;   // 提示文字自动复原的计时器
+    var voiceSeq = 0;       // 每次进语音模式 +1，作废还没回来的识别结果
+
+    // 浏览器不支持录音：藏起麦克风按钮，其余功能不受影响
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+      micBtn.style.display = 'none';
+    } else {
+      micBtn.addEventListener('click', enterVoiceMode);
+      voiceCancelBtn.addEventListener('click', cancelVoice);
+      holdBtn.addEventListener('pointerdown', startHold);
+      holdBtn.addEventListener('pointerup', endHold);
+      holdBtn.addEventListener('pointercancel', endHold);
+      // 手机上长按不弹出菜单
+      holdBtn.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+      // 录音中切后台：自动结束录音
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden && recording) endHold();
+      });
+    }
+
+    // ===== 语音模式开关 =====
+    function enterVoiceMode() {
+      voiceSeq++;  // 作废上一轮还没回来的结果
+      clearTimeout(hintTimer);
+      resetHoldBtn();
+      searchSection.classList.add('voice-mode');
+      // http 页面（非本机）拿不到麦克风，直接提示
+      if (location.protocol === 'http:' &&
+          location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        showHint('需要 HTTPS 才能用语音');
+        return;
+      }
+      tryGetMic();
+    }
+    function exitVoiceMode() {
+      searchSection.classList.remove('voice-mode');
+      releaseMic();
+    }
+    function resetHoldBtn() {
+      holdBtn.classList.remove('recording');
+      holdBtn.textContent = '按住说话';
+    }
+    // 在按钮上显示一句提示，2 秒后复原
+    function showHint(text) {
+      holdBtn.classList.remove('recording');
+      holdBtn.textContent = text;
+      clearTimeout(hintTimer);
+      hintTimer = setTimeout(resetHoldBtn, 2000);
+    }
+    // 要麦克风（浏览器会弹权限框；给过一次后都是静默拿）
+    function tryGetMic() {
+      if (stream || micPending) return;
+      micPending = true;
+      navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+      }).then(function (s) {
+        stream = s;
+        micPending = false;
+      }).catch(function () {
+        micPending = false;
+        showHint('没有麦克风权限，请在浏览器设置里允许');
+      });
+    }
+    function releaseMic() {
+      if (stream) {
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        stream = null;
+      }
+    }
+
+    // ===== 按住说话 =====
+    function startHold(e) {
+      if (busy || recording) return;
+      if (e.button !== undefined && e.button !== 0) return;  // 只认左键/单指
+      if (!stream) {
+        if (micPending) showHint('麦克风准备中…');
+        else showHint('没有麦克风权限，请在浏览器设置里允许');
+        return;
+      }
+      // 手指滑出按钮也能收到松手事件
+      if (holdBtn.setPointerCapture) {
+        try { holdBtn.setPointerCapture(e.pointerId); } catch (err) {}
+      }
+      recording = true;
+      abortReason = null;
+      chunks = [];
+      holdBtn.textContent = '松开结束';
+      holdBtn.classList.add('recording');
+
+      try {
+        recorder = new MediaRecorder(stream);
+      } catch (err) {
+        recording = false;
+        showHint('录音启动失败，再试一次');
+        return;
+      }
+      var rec = recorder;
+      rec.ondataavailable = function (ev) {
+        if (recorder !== rec) return;  // 旧录音的尾巴，别掺进新录音
+        if (ev.data && ev.data.size) chunks.push(ev.data);
+      };
+      rec.onstop = function () {
+        if (recorder !== rec) return;
+        recorder = null;
+        if (abortReason) {
+          var reason = abortReason;
+          abortReason = null;
+          if (reason === 'toolong') showHint('太长了，30 秒内说完');
+          return;
+        }
+        processRecording();  // 松手（或切后台）→ 识别
+      };
+      rec.start();
+      // 30 秒上限：自动结束，不识别
+      maxTimer = setTimeout(function () {
+        if (!recording) return;
+        recording = false;
+        abortReason = 'toolong';
+        holdBtn.classList.remove('recording');
+        stopRecorder();
+      }, 30000);
+    }
+
+    function endHold() {
+      if (!recording || !recorder) return;
+      recording = false;
+      busy = true;
+      holdBtn.classList.remove('recording');
+      holdBtn.textContent = '识别中…';
+      stopRecorder();
+    }
+
+    function stopRecorder() {
+      if (maxTimer) { clearTimeout(maxTimer); maxTimer = null; }
+      if (recorder && recorder.state === 'recording') {
+        try { recorder.stop(); } catch (err) {}
+      }
+    }
+
+    // 取消：停录音、放麦克风、回到搜索框
+    function cancelVoice() {
+      voiceSeq++;  // 作废识别中/还没回来的结果
+      if (recording) {
+        recording = false;
+        abortReason = 'cancel';
+        holdBtn.classList.remove('recording');
+        stopRecorder();
+      }
+      busy = false;
+      exitVoiceMode();
+      resetHoldBtn();
+    }
+
+    // ===== 音频加工：录音 Blob → 16kHz 单声道 WAV base64 → 云端识别 =====
+    function processRecording() {
+      var blob = new Blob(chunks);
+      chunks = [];
+      var seq = voiceSeq;
+      blob.arrayBuffer().then(function (buf) {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        return ctx.decodeAudioData(buf).then(function (audio) {
+          ctx.close();
+          return audioToWavBase64(audio);
+        });
+      }).then(function (base64) {
+        return askASR(base64);
+      }).then(function (text) {
+        busy = false;
+        if (seq !== voiceSeq) return;  // 期间取消/重进过语音模式：结果作废
+        if (text) {
+          input.value = text;
+          exitVoiceMode();
+          searchWithAI();  // 跟手动输入后按回车一样（含 AI 顾问卡）
+        } else {
+          showHint('没听清，请手动输入');
+        }
+      }).catch(function () {
+        busy = false;
+        if (seq !== voiceSeq) return;
+        showHint('没听清，请手动输入');
+      });
+    }
+
+    // 解码后的音频 → 16kHz 单声道 16bit PCM → 标准 WAV（44 字节头）→ base64
+    function audioToWavBase64(audioBuffer) {
+      var data = audioBuffer.getChannelData(0);
+      var srcRate = audioBuffer.sampleRate;
+      var dstRate = 16000;
+      var pcm;
+      if (srcRate === dstRate) {
+        pcm = new Int16Array(data.length);
+        for (var i = 0; i < data.length; i++) {
+          pcm[i] = toInt16(data[i]);
+        }
+      } else {
+        // 采样率对不上：线性插值重采样到 16kHz
+        var dstLen = Math.max(1, Math.round(data.length * dstRate / srcRate));
+        pcm = new Int16Array(dstLen);
+        for (var j = 0; j < dstLen; j++) {
+          var pos = j * srcRate / dstRate;
+          var i0 = Math.floor(pos);
+          var i1 = Math.min(i0 + 1, data.length - 1);
+          var frac = pos - i0;
+          pcm[j] = toInt16(data[i0] * (1 - frac) + data[i1] * frac);
+        }
+      }
+      function toInt16(s) {
+        s = Math.max(-1, Math.min(1, s));
+        return s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+
+      // 44 字节 WAV 头（RIFF / fmt / data），16kHz 单声道 16bit PCM
+      var header = new ArrayBuffer(44);
+      var dv = new DataView(header);
+      function writeStr(offset, str) {
+        for (var k = 0; k < str.length; k++) dv.setUint8(offset + k, str.charCodeAt(k));
+      }
+      writeStr(0, 'RIFF');
+      dv.setUint32(4, 36 + pcm.length * 2, true);
+      writeStr(8, 'WAVE');
+      writeStr(12, 'fmt ');
+      dv.setUint32(16, 16, true);           // fmt 块长度
+      dv.setUint16(20, 1, true);            // PCM
+      dv.setUint16(22, 1, true);            // 单声道
+      dv.setUint32(24, dstRate, true);      // 采样率
+      dv.setUint32(28, dstRate * 2, true);  // 字节率
+      dv.setUint16(32, 2, true);            // 块对齐
+      dv.setUint16(34, 16, true);           // 位深
+      writeStr(36, 'data');
+      dv.setUint32(40, pcm.length * 2, true);
+
+      // 拼接成 Uint8Array，分块转 base64（一次转太长会卡）
+      var bytes = new Uint8Array(44 + pcm.length * 2);
+      bytes.set(new Uint8Array(header), 0);
+      bytes.set(new Uint8Array(pcm.buffer), 44);
+      var binary = '';
+      var CHUNK = 0x8000;
+      for (var i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+      }
+      return btoa(binary);
+    }
+
+    // ===== 调腾讯云函数做一句话识别（沿用 AI 的 15 秒超时，失败返回空文字） =====
+    function askASR(audioBase64) {
+      return new Promise(function (resolve) {
+        var done = false;
+        var controller = null;
+        if (typeof AbortController !== 'undefined') {
+          controller = new AbortController();
+        }
+        var timer = setTimeout(function () {
+          if (done) return;
+          done = true;
+          if (controller) controller.abort();
+          resolve('');
+        }, AI_TIMEOUT);
+
+        fetch(AI_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'asr', audio: audioBase64 }),
+          signal: controller ? controller.signal : undefined
+        }).then(function (res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        }).then(function (data) {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          var text = data && typeof data.text === 'string' ? data.text.trim() : '';
+          resolve(text);
+        }).catch(function () {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          resolve('');
+        });
+      });
+    }
   </script>
 
 </body>
