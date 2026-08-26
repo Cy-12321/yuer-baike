@@ -182,6 +182,15 @@
       color: var(--text-soft);
     }
 
+    /* ===== AI 顾问卡片：复用 .card 外观，回答保持正常字号颜色 ===== */
+    .ai-card p {
+      white-space: pre-line;    /* 保留 AI 回答里的换行 */
+    }
+    .ai-card p:last-of-type {
+      font-size: 16.5px;
+      color: var(--text);
+    }
+
     /* ===== ⑤ 热门问题区 ===== */
     h2 {
       margin-bottom: 18px;
@@ -308,6 +317,7 @@
     var ageBtns = document.querySelectorAll('.age-btn');
     var hotItems = document.querySelectorAll('.hot-item');
     var selectedAge = '';  // 空 = 没筛年龄段
+    var aiSeq = 0;  // 每重新渲染一次就 +1，用来作废还没返回的 AI 回答
 
     // 生成一张结果卡片
     function createCard(item) {
@@ -344,6 +354,7 @@
     // 第一优先：整句关键词直接匹配；一条都没中时，
     // 按 4字→3字→2字 滑动拆词，用命中的小词再搜一轮
     function render() {
+      aiSeq++;
       var keyword = input.value.trim();
       resultList.textContent = '';
 
@@ -420,9 +431,83 @@
       return hits.map(function (h) { return h.item; });
     }
 
-    btn.addEventListener('click', render);
+    // ===== AI 育儿顾问：AI 优先、查表兜底 =====
+    var AI_URL = 'https://yuer-ai.waiwangguge.workers.dev/';
+    var AI_TIMEOUT = 15000;  // 15 秒没返回就当 AI 失败，保持查表结果
+
+    // 向 AI 育儿顾问提问：成功且 answer 非空返回文本，否则返回空字符串
+    function askAI(question, age) {
+      return new Promise(function (resolve) {
+        var done = false;
+        var controller = null;
+        if (typeof AbortController !== 'undefined') {
+          controller = new AbortController();
+        }
+
+        // 超时同样走兜底：当作 AI 失败
+        var timer = setTimeout(function () {
+          if (done) return;
+          done = true;
+          if (controller) controller.abort();
+          resolve('');
+        }, AI_TIMEOUT);
+
+        fetch(AI_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: question, age: age }),
+          signal: controller ? controller.signal : undefined
+        }).then(function (res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        }).then(function (data) {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          var answer = data && typeof data.answer === 'string' ? data.answer.trim() : '';
+          resolve(answer);
+        }).catch(function () {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          resolve('');
+        });
+      });
+    }
+
+    // AI 回答卡片：外观跟知识库卡片一致，顶部标一行顾问名
+    function createAICard(answer) {
+      var card = document.createElement('div');
+      card.className = 'card ai-card';
+
+      var title = document.createElement('h3');
+      title.textContent = '🧑🏫 AI 育儿顾问';
+      card.appendChild(title);
+
+      var answerP = document.createElement('p');
+      answerP.textContent = answer;
+      card.appendChild(answerP);
+
+      return card;
+    }
+
+    // 搜索主流程：先照原查表逻辑出结果，同时问 AI；
+    // AI 答上来就把回答卡片插到结果区最顶部，没答上来则结果和以前一模一样
+    function searchWithAI() {
+      render();
+      var keyword = input.value.trim();
+      if (!keyword) return;  // 没关键词就不问 AI，保持以前的空白/只看年龄段行为
+
+      var seq = aiSeq;
+      askAI(keyword, selectedAge).then(function (answer) {
+        if (!answer || seq !== aiSeq) return;  // AI 没答上来，或期间又搜索了一次
+        resultList.insertBefore(createAICard(answer), resultList.firstChild);
+      });
+    }
+
+    btn.addEventListener('click', searchWithAI);
     input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') render();
+      if (e.key === 'Enter') searchWithAI();
     });
 
     // 只让当前选中的年龄段按钮加粗
