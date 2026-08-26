@@ -20,8 +20,11 @@
     }
 
     /* ===== 全局：圆润字体 + 偏大字号 ===== */
-    body {
+    html, body {
       margin: 0;
+      touch-action: manipulation;   /* 手机端禁止双击缩放（快速点按钮不放大页面） */
+    }
+    body {
       text-align: center;
       background: var(--bg);
       color: var(--text);
