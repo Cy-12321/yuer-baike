@@ -764,6 +764,7 @@
     // ===== 按住说话 =====
     function startHold(e) {
       if (busy || recording) return;
+      unlockAudio();  // 手势时刻解锁音频（手机浏览器自动播放安全策略）
       if (e.button !== undefined && e.button !== 0) return;  // 只认左键/单指
       if (!stream) {
         if (micPending) showHint('麦克风准备中…');
@@ -978,12 +979,34 @@
   <script>
     var readingAudio = null;  // 正在播的这段音频：新搜索一来就掐断
     var ttsSeq = 0;           // 每掐断一次 +1，作废还没开播的旧朗读
+    var audioCtx = null;      // 音频上下文：按住说话时解锁，之后播放才不被浏览器拦截
+
+    // 在用户"动手"的时刻解锁音频（手机浏览器安全策略：没有手势不允许网页发声，
+    // 语音流程的手势在十几秒前，所以必须在这里提前解锁，否则 play 会被静默拦截）
+    function unlockAudio() {
+      try {
+        if (!audioCtx) {
+          var AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return;
+          audioCtx = new AC();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+      } catch (err) {}
+    }
+
+    // base64 音频 → ArrayBuffer（decodeAudioData 用）
+    function base64ToArrayBuffer(b64) {
+      var binary = atob(b64);
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes.buffer;
+    }
 
     // 立刻停掉正在播的答案朗读（新搜索、新答案都走这里）
     function stopReading() {
       ttsSeq++;
       if (readingAudio) {
-        try { readingAudio.pause(); } catch (err) {}
+        try { readingAudio.stop(); } catch (err) {}
         readingAudio = null;
       }
     }
@@ -1038,25 +1061,26 @@
       });
     }
 
-    // 一段一段连着播：这段 ended 自动放下一段；播报错就当没这回事
+    // 一段一段连着播（Web Audio 播放：只要解锁过 audioCtx 就不受自动播放限制）；
+    // 这段播完自动放下一段；解码/播放报错静默跳过，不打扰
     function playAudios(audios, seq) {
+      if (!audioCtx) return;  // 没解锁成功（老浏览器）：静默放弃
       var i = 0;
       function playNext() {
         if (seq !== ttsSeq) return;  // 新搜索来了：立即停
         if (i >= audios.length) { readingAudio = null; return; }  // 全部播完
-        var audio = new Audio('data:audio/mp3;base64,' + audios[i]);
-        i++;
-        readingAudio = audio;
-        audio.onended = playNext;  // 自动接下一段
-        audio.onerror = function () {
-          if (readingAudio === audio) readingAudio = null;
-        };
-        var p = audio.play();
-        if (p && p.catch) {
-          p.catch(function () {
-            if (readingAudio === audio) readingAudio = null;
-          });
-        }
+        var idx = i++;
+        audioCtx.decodeAudioData(base64ToArrayBuffer(audios[idx])).then(function (buf) {
+          if (seq !== ttsSeq) return;  // 解码期间被掐断：不播了
+          var src = audioCtx.createBufferSource();
+          src.buffer = buf;
+          src.connect(audioCtx.destination);
+          src.onended = function () { playNext(); };  // 自动接下一段
+          readingAudio = src;
+          src.start();
+        }).catch(function () {
+          playNext();  // 这段解码失败：跳过，继续下一段
+        });
       }
       playNext();
     }
