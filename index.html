@@ -190,11 +190,14 @@
       0%   { box-shadow: 0 0 0 0 rgba(229, 151, 91, 0.35); }
       100% { box-shadow: 0 0 0 14px rgba(229, 151, 91, 0); }
     }
-    #voice-cancel-btn {
+    #voice-keyboard-btn {
       flex: none;
-      margin-left: 10px;
+      margin-right: 10px;
       width: 50px;
-      font-size: 16px;
+      height: 50px;
+      padding: 0;
+      font-size: 20px;
+      line-height: 1;
       font-family: inherit;
       color: var(--text-soft);
       background: var(--card);
@@ -204,7 +207,7 @@
       box-shadow: var(--shadow);
       transition: border-color .2s, color .2s, box-shadow .2s;
     }
-    #voice-cancel-btn:hover {
+    #voice-keyboard-btn:hover {
       border-color: var(--accent);
       color: var(--accent-dark);
     }
@@ -381,16 +384,16 @@
     <p>科学育儿不焦虑：喂养、睡眠、情绪、习惯，一站式解答 0-12 岁育儿难题</p>
   </header>
 
-  <!-- ② 搜索区 -->
-  <section class="block" id="search-section">
+  <!-- ② 搜索区（默认语音优先：按住说话；⌨ 可切回键盘输入） -->
+  <section class="block voice-mode" id="search-section">
     <div class="input-row">
       <input type="search" id="search-input" placeholder="搜关键词：哭闹、发烧、辅食">
       <button id="mic-btn" title="语音输入" aria-label="语音输入">🎤</button>
     </div>
     <button id="search-btn">搜索</button>
     <div class="voice-row" id="voice-row">
+      <button id="voice-keyboard-btn" title="键盘输入" aria-label="键盘输入">⌨</button>
       <button id="hold-speak-btn">按住说话</button>
-      <button id="voice-cancel-btn" title="退出语音输入" aria-label="退出语音输入">✕</button>
     </div>
     <div id="age-row">
       <button class="age-btn" data-age="0-1岁">0-1岁</button>
@@ -688,7 +691,7 @@
   <script>
     var searchSection = document.getElementById('search-section');
     var micBtn = document.getElementById('mic-btn');
-    var voiceCancelBtn = document.getElementById('voice-cancel-btn');
+    var keyboardBtn = document.getElementById('voice-keyboard-btn');
     var holdBtn = document.getElementById('hold-speak-btn');
 
     var stream = null;      // 麦克风流：语音模式期间拿着，退出时释放（不让麦克风一直亮）
@@ -707,7 +710,9 @@
       micBtn.style.display = 'none';
     } else {
       micBtn.addEventListener('click', enterVoiceMode);
-      voiceCancelBtn.addEventListener('click', cancelVoice);
+      keyboardBtn.addEventListener('click', exitToKeyboard);
+      // 默认语音优先：打开页面直接是"按住说话"（浏览器支持录音时）
+      enterVoiceMode();
       holdBtn.addEventListener('pointerdown', startHold);
       holdBtn.addEventListener('pointerup', endHold);
       holdBtn.addEventListener('pointercancel', endHold);
@@ -840,8 +845,8 @@
       }
     }
 
-    // 取消：停录音、放麦克风、回到搜索框
-    function cancelVoice() {
+    // 点键盘图标 ⌨：退出语音模式（停止录音、释放麦克风、回到文字输入）
+    function exitToKeyboard() {
       voiceSeq++;  // 作废识别中/还没回来的结果
       if (recording) {
         recording = false;
