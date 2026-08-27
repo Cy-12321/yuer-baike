@@ -436,6 +436,7 @@
     var hotItems = document.querySelectorAll('.hot-item');
     var selectedAge = '';  // 空 = 没筛年龄段
     var aiSeq = 0;  // 每重新渲染一次就 +1，用来作废还没返回的 AI 回答
+    var lastSearchFromVoice = false;  // 语音提问标记：只有语音识别成功会设 true，用完立刻归位 false（手动搜索永远不读）
 
     // 生成一张结果卡片
     function createCard(item) {
@@ -473,6 +474,7 @@
     // 按 4字→3字→2字 滑动拆词，用命中的小词再搜一轮
     function render() {
       aiSeq++;
+      stopReading();  // 结果区要换了：正在播的答案朗读立刻停（防串台）
       var keyword = input.value.trim();
       resultList.textContent = '';
 
@@ -613,6 +615,8 @@
     // 搜索主流程：先照原查表逻辑出结果，同时在结果区最顶部插一张 AI 占位卡；
     // AI 答上来就把占位卡文字原地换成回答，没答上来就换成一句灰色小字
     function searchWithAI() {
+      var fromVoice = lastSearchFromVoice;  // 本次提问是否来自语音
+      lastSearchFromVoice = false;          // 只认这一次，下次搜索默认手动
       render();
       var keyword = input.value.trim();
       if (!keyword) return;  // 没关键词就不问 AI，保持以前的空白/只看年龄段行为
@@ -627,6 +631,7 @@
         placeholder.classList.remove('ai-loading');
         if (answer) {
           answerP.textContent = answer;
+          if (fromVoice) readAnswerAloud(answer);  // 语音提问的答案：自动朗读一遍
         } else {
           answerP.textContent = 'AI 顾问暂时没接上，先看下面的知识库答案';
           placeholder.classList.add('ai-failed');
@@ -858,6 +863,7 @@
         if (text) {
           input.value = text;
           exitVoiceMode();
+          lastSearchFromVoice = true;  // 这次是语音提问：AI 答案出来后自动朗读
           searchWithAI();  // 跟手动输入后按回车一样（含 AI 顾问卡）
         } else {
           showHint('没听清，请手动输入');
@@ -965,6 +971,94 @@
           resolve('');
         });
       });
+    }
+  </script>
+
+  <!-- 答案朗读：语音提问 → AI 答案 → 腾讯云 TTS 温柔女声 → 自动播一遍（失败全程静默） -->
+  <script>
+    var readingAudio = null;  // 正在播的这段音频：新搜索一来就掐断
+    var ttsSeq = 0;           // 每掐断一次 +1，作废还没开播的旧朗读
+
+    // 立刻停掉正在播的答案朗读（新搜索、新答案都走这里）
+    function stopReading() {
+      ttsSeq++;
+      if (readingAudio) {
+        try { readingAudio.pause(); } catch (err) {}
+        readingAudio = null;
+      }
+    }
+
+    // AI 答案出来后：拿文字去云端合成，合成好了一段段连播；
+    // 超时 / 空数组 / 播放报错都静默，不打扰看答案
+    function readAnswerAloud(text) {
+      stopReading();
+      var seq = ttsSeq;
+      askTTS(text).then(function (audios) {
+        if (seq !== ttsSeq) return;             // 期间又搜索了：这次不播
+        if (!audios || !audios.length) return;  // 合成失败：静默兜底
+        playAudios(audios, seq);
+      });
+    }
+
+    // 调腾讯云函数做语音合成（沿用 AI 的 15 秒超时，失败返回空数组）
+    function askTTS(text) {
+      return new Promise(function (resolve) {
+        var done = false;
+        var controller = null;
+        if (typeof AbortController !== 'undefined') {
+          controller = new AbortController();
+        }
+        var timer = setTimeout(function () {
+          if (done) return;
+          done = true;
+          if (controller) controller.abort();
+          resolve([]);
+        }, AI_TIMEOUT);
+
+        fetch(AI_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'tts', text: text }),
+          signal: controller ? controller.signal : undefined
+        }).then(function (res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        }).then(function (data) {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          var audios = data && Array.isArray(data.audios) ? data.audios : [];
+          resolve(audios);
+        }).catch(function () {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          resolve([]);
+        });
+      });
+    }
+
+    // 一段一段连着播：这段 ended 自动放下一段；播报错就当没这回事
+    function playAudios(audios, seq) {
+      var i = 0;
+      function playNext() {
+        if (seq !== ttsSeq) return;  // 新搜索来了：立即停
+        if (i >= audios.length) { readingAudio = null; return; }  // 全部播完
+        var audio = new Audio('data:audio/mp3;base64,' + audios[i]);
+        i++;
+        readingAudio = audio;
+        audio.onended = playNext;  // 自动接下一段
+        audio.onerror = function () {
+          if (readingAudio === audio) readingAudio = null;
+        };
+        var p = audio.play();
+        if (p && p.catch) {
+          p.catch(function () {
+            if (readingAudio === audio) readingAudio = null;
+          });
+        }
+      }
+      playNext();
     }
   </script>
 
