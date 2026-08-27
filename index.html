@@ -597,13 +597,21 @@
 
     // AI 占位卡：外观跟知识库卡片一致，顶部标一行顾问名；
     // 一开始半透明显示"正在思考…"，回答回来后原地改文字
-    function createAICard() {
+    function createAICard(question, showQuestion) {
       var card = document.createElement('div');
       card.className = 'card ai-card ai-loading';
 
       var title = document.createElement('h3');
       title.textContent = '🧑🏫 AI 育儿顾问';
       card.appendChild(title);
+
+      // 语音提问：顾问名下面加一行"你问的：xxx"（灰棕小字，一问一答的样子）
+      if (showQuestion && question) {
+        var askedP = document.createElement('p');
+        askedP.textContent = '你问的：' + question;
+        askedP.style.cssText = 'margin:2px 0 8px;font-size:14px;color:#8a7a6a;';
+        card.appendChild(askedP);
+      }
 
       var answerP = document.createElement('p');
       answerP.textContent = '正在思考…';
@@ -621,7 +629,7 @@
       var keyword = input.value.trim();
       if (!keyword) return;  // 没关键词就不问 AI，保持以前的空白/只看年龄段行为
 
-      var placeholder = createAICard();
+      var placeholder = createAICard(keyword, fromVoice);
       resultList.insertBefore(placeholder, resultList.firstChild);
 
       var seq = aiSeq;
@@ -713,6 +721,7 @@
 
     // ===== 语音模式开关 =====
     function enterVoiceMode() {
+      stopReading();  // 点麦克风：先停掉正在播的答案朗读
       voiceSeq++;  // 作废上一轮还没回来的结果
       clearTimeout(hintTimer);
       resetHoldBtn();
@@ -863,7 +872,7 @@
         if (seq !== voiceSeq) return;  // 期间取消/重进过语音模式：结果作废
         if (text) {
           input.value = text;
-          exitVoiceMode();
+          resetHoldBtn();  // 保持语音模式：按钮恢复"按住说话"，可以连续问
           lastSearchFromVoice = true;  // 这次是语音提问：AI 答案出来后自动朗读
           searchWithAI();  // 跟手动输入后按回车一样（含 AI 顾问卡）
         } else {
