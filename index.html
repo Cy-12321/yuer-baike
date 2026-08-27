@@ -1018,7 +1018,7 @@
         fetch(AI_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'tts', text: text }),
+          body: JSON.stringify({ action: 'tts', text: text, voice: '101007' }),
           signal: controller ? controller.signal : undefined
         }).then(function (res) {
           if (!res.ok) throw new Error('HTTP ' + res.status);
