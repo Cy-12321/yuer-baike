@@ -779,6 +779,7 @@
     function startHold(e) {
       if (busy || recording) return;
       unlockAudio();  // 手势时刻解锁音频（手机浏览器自动播放安全策略）
+      stopReading();  // 要问新问题了：先停掉上一轮还在播的朗读
       if (e.button !== undefined && e.button !== 0) return;  // 只认左键/单指
       if (!stream) {
         if (micPending) showHint('麦克风准备中…');
