@@ -119,29 +119,41 @@
       transform: translateY(1px);
     }
 
-    /* ===== ②.5 语音输入：麦克风按钮 + 按住说话 ===== */
-    #mic-btn {
-      flex: none;
-      margin-left: 8px;
+    /* ===== ②.5 输入方式切换：🎤 语音 / ⌨ 键盘 并排，点哪个切到哪个 ===== */
+    .mode-row {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .mode-btn {
       width: 50px;
       height: 50px;
       padding: 0;
       font-size: 22px;
       line-height: 1;
-      color: var(--accent-dark);
+      font-family: inherit;
+      color: var(--text-soft);
       background: var(--card);
       border: 2px solid var(--line);
       border-radius: 50%;
       cursor: pointer;
       box-shadow: var(--shadow);
-      transition: border-color .2s, box-shadow .2s, transform .1s;
+      transition: border-color .2s, color .2s, background-color .2s, box-shadow .2s, transform .1s;
     }
-    #mic-btn:hover {
+    .mode-btn:hover {
       border-color: var(--accent);
+      color: var(--accent-dark);
       box-shadow: var(--shadow-lift);
     }
-    #mic-btn:active {
+    .mode-btn:active {
       transform: translateY(1px);
+    }
+    /* 当前选中的输入方式：浅橙实心，一眼看出现在是什么模式 */
+    .mode-btn.active {
+      color: #FFFFFF;
+      background: var(--accent);
+      border-color: var(--accent-dark);
     }
 
     /* 语音模式：搜索框位置换成「按住说话」+ 取消按钮 */
@@ -190,28 +202,6 @@
       0%   { box-shadow: 0 0 0 0 rgba(229, 151, 91, 0.35); }
       100% { box-shadow: 0 0 0 14px rgba(229, 151, 91, 0); }
     }
-    #voice-keyboard-btn {
-      flex: none;
-      margin-right: 10px;
-      width: 50px;
-      height: 50px;
-      padding: 0;
-      font-size: 20px;
-      line-height: 1;
-      font-family: inherit;
-      color: var(--text-soft);
-      background: var(--card);
-      border: 2px solid var(--line);
-      border-radius: 999px;
-      cursor: pointer;
-      box-shadow: var(--shadow);
-      transition: border-color .2s, color .2s, box-shadow .2s;
-    }
-    #voice-keyboard-btn:hover {
-      border-color: var(--accent);
-      color: var(--accent-dark);
-    }
-
     /* ===== ③ 4个年龄段按钮 ===== */
     #age-row {
       margin-top: 18px;
@@ -286,6 +276,36 @@
     }
 
     /* ===== AI 顾问卡片：复用 .card 外观，回答保持正常字号颜色 ===== */
+    /* 标题行：顾问名 + 右侧朗读开关（喇叭） */
+    .ai-card h3.ai-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .ai-card .read-toggle {
+      flex: none;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      font-size: 22px;
+      line-height: 1;
+      color: var(--text);            /* 开启：正常颜色 */
+      background: transparent;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: background-color .2s, opacity .2s, filter .2s;
+    }
+    .ai-card .read-toggle:hover {
+      background: var(--cream);
+    }
+    /* 关闭：灰色半透明，一眼看出当前是静音状态 */
+    .ai-card .read-toggle.off {
+      color: var(--text-soft);
+      opacity: 0.45;
+      filter: grayscale(1);
+    }
     .ai-card p {
       white-space: pre-line;    /* 保留 AI 回答里的换行 */
     }
@@ -384,15 +404,18 @@
     <p>科学育儿不焦虑：喂养、睡眠、情绪、习惯，一站式解答 0-12 岁育儿难题</p>
   </header>
 
-  <!-- ② 搜索区（默认语音优先：按住说话；⌨ 可切回键盘输入） -->
+  <!-- ② 搜索区（默认语音优先：按住说话；🎤/⌨ 并排点按切换输入方式） -->
   <section class="block voice-mode" id="search-section">
+    <!-- 输入方式切换：🎤 语音 / ⌨ 键盘 并排，点哪个切到哪个 -->
+    <div class="mode-row" id="mode-row">
+      <button id="mic-btn" class="mode-btn active" title="语音输入" aria-label="语音输入">🎤</button>
+      <button id="keyboard-btn" class="mode-btn" title="键盘输入" aria-label="键盘输入">⌨</button>
+    </div>
     <div class="input-row">
       <input type="search" id="search-input" placeholder="搜关键词：哭闹、发烧、辅食">
-      <button id="mic-btn" title="语音输入" aria-label="语音输入">🎤</button>
     </div>
     <button id="search-btn">搜索</button>
     <div class="voice-row" id="voice-row">
-      <button id="voice-keyboard-btn" title="键盘输入" aria-label="键盘输入">⌨</button>
       <button id="hold-speak-btn">按住说话</button>
     </div>
     <div id="age-row">
@@ -440,6 +463,7 @@
     var selectedAge = '';  // 空 = 没筛年龄段
     var aiSeq = 0;  // 每重新渲染一次就 +1，用来作废还没返回的 AI 回答
     var lastSearchFromVoice = false;  // 语音提问标记：只有语音识别成功会设 true，用完立刻归位 false（手动搜索永远不读）
+    var autoReadOn = true;  // 答案朗读开关：默认开启；点 AI 卡上的喇叭切换，只管"是否自动朗读"
 
     // 生成一张结果卡片
     function createCard(item) {
@@ -605,7 +629,23 @@
       card.className = 'card ai-card ai-loading';
 
       var title = document.createElement('h3');
-      title.textContent = '🧑🏫 AI 育儿顾问';
+      title.className = 'ai-title';
+      var titleText = document.createElement('span');
+      titleText.textContent = '🧑🏫 AI 育儿顾问';
+      title.appendChild(titleText);
+
+      // 朗读开关：🔈 自动朗读开着，🔇 关掉（开关状态存全局变量，换新卡也保持）
+      var readBtn = document.createElement('button');
+      readBtn.type = 'button';
+      readBtn.className = 'read-toggle';
+      readBtn.addEventListener('click', function () {
+        autoReadOn = !autoReadOn;
+        updateReadToggle(readBtn);
+        stopReading();  // 切换时立刻掐断正在播的朗读（也作废合成途中的）
+      });
+      updateReadToggle(readBtn);
+      title.appendChild(readBtn);
+
       card.appendChild(title);
 
       // 语音提问：顾问名下面加一行"你问的：xxx"（灰棕小字，一问一答的样子）
@@ -617,10 +657,25 @@
       }
 
       var answerP = document.createElement('p');
+      answerP.className = 'ai-answer';  // 标记答案段：有「你问的」一行时，querySelector('p') 会选错
       answerP.textContent = '正在思考…';
       card.appendChild(answerP);
 
       return card;
+    }
+
+    // 喇叭按钮的外观跟全局开关同步（新卡创建、点按切换都走这里）
+    function updateReadToggle(btn) {
+      btn.textContent = autoReadOn ? '🔈' : '🔇';
+      var label = autoReadOn ? '关闭答案自动朗读' : '开启答案自动朗读';
+      btn.title = label;
+      btn.setAttribute('aria-label', label);
+      btn.setAttribute('aria-pressed', autoReadOn ? 'true' : 'false');
+      if (autoReadOn) {
+        btn.classList.remove('off');
+      } else {
+        btn.classList.add('off');
+      }
     }
 
     // 搜索主流程：先照原查表逻辑出结果，同时在结果区最顶部插一张 AI 占位卡；
@@ -638,11 +693,11 @@
       var seq = aiSeq;
       askAI(keyword, selectedAge).then(function (answer) {
         if (seq !== aiSeq) return;  // 期间又搜索了一次：旧占位卡已被清掉，什么都不做
-        var answerP = placeholder.querySelector('p');
+        var answerP = placeholder.querySelector('.ai-answer');
         placeholder.classList.remove('ai-loading');
         if (answer) {
           answerP.textContent = answer;
-          if (fromVoice) readAnswerAloud(answer);  // 语音提问的答案：自动朗读一遍
+          if (fromVoice && autoReadOn) readAnswerAloud(answer);  // 语音提问 + 朗读开关开着：自动朗读一遍
         } else {
           answerP.textContent = 'AI 顾问暂时没接上，先看下面的知识库答案';
           placeholder.classList.add('ai-failed');
@@ -691,7 +746,7 @@
   <script>
     var searchSection = document.getElementById('search-section');
     var micBtn = document.getElementById('mic-btn');
-    var keyboardBtn = document.getElementById('voice-keyboard-btn');
+    var keyboardBtn = document.getElementById('keyboard-btn');
     var holdBtn = document.getElementById('hold-speak-btn');
 
     var stream = null;      // 麦克风流：语音模式期间拿着，退出时释放（不让麦克风一直亮）
@@ -709,8 +764,13 @@
     if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
       micBtn.style.display = 'none';
     } else {
-      micBtn.addEventListener('click', enterVoiceMode);
-      keyboardBtn.addEventListener('click', exitToKeyboard);
+      // 🎤/⌨ 点按切换输入方式；已处于该模式时点了没反应
+      micBtn.addEventListener('click', function () {
+        if (!searchSection.classList.contains('voice-mode')) enterVoiceMode();
+      });
+      keyboardBtn.addEventListener('click', function () {
+        if (searchSection.classList.contains('voice-mode')) exitToKeyboard();
+      });
       // 默认语音优先：打开页面直接是"按住说话"（浏览器支持录音时）
       enterVoiceMode();
       holdBtn.addEventListener('pointerdown', startHold);
@@ -726,11 +786,13 @@
 
     // ===== 语音模式开关 =====
     function enterVoiceMode() {
-      stopReading();  // 点麦克风：先停掉正在播的答案朗读
+      // 加载时朗读脚本（后面的 script）还没执行，用 typeof 守卫，别让这里崩掉
+      if (typeof stopReading === 'function') stopReading();  // 点麦克风：先停掉正在播的答案朗读
       voiceSeq++;  // 作废上一轮还没回来的结果
       clearTimeout(hintTimer);
       resetHoldBtn();
       searchSection.classList.add('voice-mode');
+      updateModeButtons();
       // http 页面（非本机）拿不到麦克风，直接提示
       if (location.protocol === 'http:' &&
           location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
@@ -746,6 +808,17 @@
     function resetHoldBtn() {
       holdBtn.classList.remove('recording');
       holdBtn.textContent = '按住说话';
+    }
+    // 🎤/⌨ 高亮当前输入方式（mode-row 上两个按钮共用的状态）
+    function updateModeButtons() {
+      var voice = searchSection.classList.contains('voice-mode');
+      if (voice) {
+        micBtn.classList.add('active');
+        keyboardBtn.classList.remove('active');
+      } else {
+        micBtn.classList.remove('active');
+        keyboardBtn.classList.add('active');
+      }
     }
     // 在按钮上显示一句提示，2 秒后复原
     function showHint(text) {
@@ -779,11 +852,11 @@
     function startHold(e) {
       if (busy || recording) return;
       unlockAudio();  // 手势时刻解锁音频（手机浏览器自动播放安全策略）
-      stopReading();  // 要问新问题了：先停掉上一轮还在播的朗读
+      if (typeof stopReading === 'function') stopReading();  // 要问新问题了：先停掉上一轮还在播的朗读
       if (e.button !== undefined && e.button !== 0) return;  // 只认左键/单指
       if (!stream) {
-        if (micPending) showHint('麦克风准备中…');
-        else showHint('没有麦克风权限，请在浏览器设置里允许');
+        if (!micPending) tryGetMic();  // 加载时权限没拿到：按住时再要一次
+        showHint('麦克风准备中…');
         return;
       }
       // 手指滑出按钮也能收到松手事件
@@ -858,6 +931,7 @@
       busy = false;
       exitVoiceMode();
       resetHoldBtn();
+      updateModeButtons();
     }
 
     // ===== 音频加工：录音 Blob → 16kHz 单声道 WAV base64 → 云端识别 =====
